@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <title>Project 2: Implementing Datalog</title>
+  <meta name="description" content="Note: you are encouraged to work in groups of up to three.">
+
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://kmicinski.com/cis700-f23/css/main.css">
+  <link rel="canonical" href="https://kmicinski.com/cis700-f23/projects/2">
+  <link rel="alternate" type="application/rss+xml" title="CIS700" href="https://kmicinski.com/cis700-f23/feed.xml">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+</head>
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+
+    <a class="site-title" href=https://kmicinski.com//cis700-f23/>CIS700</a>
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+      <div class="container-fluid">
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav">
+        <!-- <li class="nav-item"> -->
+        <!--   <a class="nav-link" href=https://kmicinski.com//cis700-f23/learning-objectives>Objectives</a> -->
+        <!-- </li> -->
+        <li class="nav-item">
+          <a class="nav-link" href=https://kmicinski.com//cis700-f23/syllabus>Syllabus</a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+
+    <!-- <nav class="site-nav"> -->
+    <!--   <a href="#" class="menu-icon"> -->
+    <!--     <svg viewBox="0 0 18 15"> -->
+    <!--       <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/> -->
+    <!--       <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/> -->
+    <!--       <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/> -->
+    <!--     </svg> -->
+    <!--   </a> -->
+
+    <!--   <div class="trigger"> -->
+    <!--      -->
+    <!--        -->
+    <!--      -->
+    <!--        -->
+    <!--      -->
+    <!--        -->
+    <!--      -->
+    <!--        -->
+    <!--      -->
+    <!--        -->
+    <!--       <a class="page-link" href="https://kmicinski.com//cis700-f23/schedule/">Schedule</a> -->
+    <!--        -->
+    <!--      -->
+    <!--        -->
+    <!--       <a class="page-link" href="https://kmicinski.com//cis700-f23/syllabus/">Syllabus</a> -->
+    <!--        -->
+    <!--      -->
+    <!--   </div> -->
+    <!-- </nav> -->
+
+  </div>
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Project 2: Implementing Datalog</h1>
+    <h3><b>Project due date: <time datetime="2023-10-12T00:00:00-04:00">Oct 12,
+    2023 (11:59PM Eastern)</time></b></h3>
+  </header>
+
+  <div class="post-content writeup-content" itemprop="articleBody">
+    <p><strong>Note</strong>: you are encouraged to work in groups of up to three.</p>
+
+<p>In this project, you will implement the logic programming language
+Datalog. Datalog is a restricted version of SAT to Horn clauses. For
+example, the following is a short Datalog program:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>path(x,y) :- edge(x,y)
+path(x,z) :- path(x,y) edge(y,z)
+
+edge(Syracuse,Rochester)
+edge(Rochester,Ithaca)
+edge(Rochester,Buffalo)
+</code></pre></div></div>
+
+<p>The program has two rules: the first says that any pair <code class="language-plaintext highlighter-rouge">x,y</code> forming
+an <code class="language-plaintext highlighter-rouge">edge</code> is also a <code class="language-plaintext highlighter-rouge">path</code>. Conceptually, we can think of <code class="language-plaintext highlighter-rouge">edge</code> as an
+“input” relation; opertationally, the first rule copies <code class="language-plaintext highlighter-rouge">edge</code> to
+<code class="language-plaintext highlighter-rouge">path</code>. The second rule iteratively builds up <code class="language-plaintext highlighter-rouge">path</code>. It says:
+whenever there is a <code class="language-plaintext highlighter-rouge">path(x,y)</code> such that there is also an <code class="language-plaintext highlighter-rouge">edge(y,z)</code>
+(notice: y <em>matches</em>), there must be <code class="language-plaintext highlighter-rouge">path(x,z)</code> as well. Executing
+the program materializes (via saturation) the relation <code class="language-plaintext highlighter-rouge">path</code>.</p>
+
+<h2 id="your-assignment">Your Assignment</h2>
+
+<p>You will build an interpreter for Datalog, which parses <code class="language-plaintext highlighter-rouge">.dl</code> files
+and executes them to a fixed point. Your .sdl (<em>simple</em> DL) files will
+be a simplified format intended to be easy for you to parse, but
+roughly similar to the input format for the state-of-the-art
+<a href="https://souffle-lang.github.io/">Souffle</a> engine–we encourage you to
+use Souffle to help understand Datalog, and we have Souffle versions
+of the test files. Your program will take a single command-line
+argument, which is the <code class="language-plaintext highlighter-rouge">.sdl</code> file which will be executed.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python3 yourdatalog.py transitive_closure.sdl
+</code></pre></div></div>
+
+<p>Your program’s <em>output</em> should be a collection of .tsv
+(tab-separated-values) files corresponding to the various relations of
+your output.</p>
+
+<p>Every group must implement the “positive fragment” of Datalog sketched
+below. Additionally, you must implement one of two options:</p>
+
+<ul>
+  <li>Stratified negation</li>
+  <li>Semi-naive evaluation</li>
+</ul>
+
+<h2 id="simple-datalog">Simple Datalog</h2>
+
+<p>We define a simple version of Datalog, which I call “simple” Datalog
+(<code class="language-plaintext highlighter-rouge">.sdl</code>). This is meant to be simpler to parse. In <code class="language-plaintext highlighter-rouge">.sdl</code> programs,
+there are only two types of lines allowed (other than empty lines):
+(a) facts and (b) rules.</p>
+
+<p>Facts look like this:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>edge(1,2)
+foo(5,2,1)
+bar(2,5,1,2)
+</code></pre></div></div>
+
+<p>Notice that the only type of allowed “atomic” Data in simple Datalog
+is the integers (e.g., there are no strings, etc… allowed). Also
+notice the precise formating: it is always <code class="language-plaintext highlighter-rouge">relation_name(n0,...)</code>
+with the relation named, followed by <code class="language-plaintext highlighter-rouge">(</code>, followed by a number of
+comma-separated integers (you can assume they are positive). This
+should be easy to parse in many languages via a combination of regular
+expressions, splitting, etc… Last, observe that facts do not allow
+any variables: only integers are allowed as arguments to the relation.</p>
+
+<p>Rules are more general than facts, and define inductively-computed
+relations:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>path(x,y) :- edge(x,y)
+path(x,z) :- path(x,y) path(y,z)
+foo(x,5) :- bar(x,1,y) edge(x,y)
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">:-</code> is a common (but antiquated) symbol frequently used in logic
+programming–it means ←. So these rules could be read alternatively
+as:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>path(x,y) ← edge(x,y)
+path(x,z) ← path(x,y) ∧ path(y,z)
+foo(x,5) ← bar(x,1,y) ∧ edge(x,y)
+</code></pre></div></div>
+
+<p>These are Horn clauses. A Horn clause is a clause with at most one
+positive literal. To understand this, let’s unfold the definition of ←
+(notice it’s backwards) to obtain:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>path(x,y) ∨ ¬edge(x,y)
+path(x,z) ∨ ¬path(x,y) ∨ ¬path(y,z)
+foo(x,5) ∨ ¬bar(x,1,y) ∨ ¬edge(x,y)
+</code></pre></div></div>
+
+<p>Now we can see clearly: Horn clauses which are set up for unit
+propagation. Datalog is essentially the restriction of propositional
+SAT to Horn clauses. We call the positive atom the “head” of the rule
+and the negative atoms the “body.” In general, the evaluation strategy
+of Datalog proceeds to a fixed-point, executing each rule until no
+more rules produce any useful information. While it is possible to
+simply use a SAT solver, Datalog’s restriction to Horn clauses enables
+a much more efficient evaluation strategy (semi-naive evaluation) and
+the ability to exploit a host of other niceties.</p>
+
+<h4 id="syntax-summary">Syntax Summary</h4>
+
+<p>In sum, you will accept as input a <code class="language-plaintext highlighter-rouge">.sdl</code> file specifying the
+problem. Non-empty input lines in <code class="language-plaintext highlighter-rouge">.sdl</code> files will have one of two
+formats:</p>
+
+<ul>
+  <li>Facts. Relations (alphanumeric, including <code class="language-plaintext highlighter-rouge">_</code>) applied to a
+comma-separated list of numbers: <code class="language-plaintext highlighter-rouge">f(1,2,3)</code> but not <code class="language-plaintext highlighter-rouge">f(x,1)</code>.</li>
+  <li>Rules. A head of a rule, followed by <code class="language-plaintext highlighter-rouge">:-</code>, followed by one or more
+bodies. The head and body clauses are of the form <code class="language-plaintext highlighter-rouge">f(x,...)</code>,
+specifying either (a) an integer literal or (b) a variable
+name. Variables used in the head <em>must</em> appear in the body (i.e.,
+they must be grounded).</li>
+</ul>
+
+<h2 id="positive-datalog-and-stratified-negation">Positive Datalog and Stratified Negation</h2>
+
+<p>Notice that vanilla Datalog does not include negation. It is fairly
+straightforward to add negation, provided that its computation may be
+<em>stratified</em>. For example, look at the following:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>symm(x,y) :- edge(x,y) edge(y,x)
+non_symm(x,y) :- edge(x,y) not(symm(y,x))
+</code></pre></div></div>
+
+<p>This program is <em>not</em> vanilla Datalog, but it is possible to
+understand what it means intuitively: first compute <code class="language-plaintext highlighter-rouge">symm</code>, then
+compute <code class="language-plaintext highlighter-rouge">non_sym</code> by iterating over <code class="language-plaintext highlighter-rouge">edge</code> and including pairs <code class="language-plaintext highlighter-rouge">(x,y)</code>
+for which there is no entry for <code class="language-plaintext highlighter-rouge">symm(y,x)</code> in the relation <code class="language-plaintext highlighter-rouge">symm</code>.</p>
+
+<p>This is called “stratified” negation. A Datalog program that uses
+stratified negation is essentially equivalent to a chain of Datalog
+programs, each which fully materializes a subordinate relation (<code class="language-plaintext highlighter-rouge">symm</code>
+in this case) and then consults it using <code class="language-plaintext highlighter-rouge">not</code>.</p>
+
+<p>If you would like to implement stratified negation, first implement
+the positive Datalog fragment (i.e., vanilla Datalog). Then, think
+about how to stratify the program so that whenever you need to invoke
+<code class="language-plaintext highlighter-rouge">not</code> on a relation, the relation is materialized via a previous
+stratum.</p>
+
+<p>If you do this phase, provide at least two nontrivial tests that your
+implementation works. You may take some liberty with the parsing and
+concrete syntax, as long as you say what you are doing.</p>
+
+<p>Note that not all programs can be stratified. For example, the
+following is an error:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>path(x,y) :- edge(x,y)
+path(x,z) :- not(path(x,y)) edge(y,z)
+</code></pre></div></div>
+
+<p>The issue is that <code class="language-plaintext highlighter-rouge">x</code> and <code class="language-plaintext highlighter-rouge">y</code> are not <em>grounded</em>. You will need to
+carefully consider this in your implementation.</p>
+
+<h2 id="semi-naive-evaluation">Semi-Naive Evaluation</h2>
+
+<p>Consider the transitive closure program from earlier:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>path(x,y) :- edge(x,y)
+path(x,z) :- path(x,y) edge(y,z)
+edge(1,2)
+edge(2,3)
+edge(2,4)
+...
+</code></pre></div></div>
+
+<p>The “naive” semantics is to run each rule at every iteration, building
+up the set <code class="language-plaintext highlighter-rouge">path</code>. We call this strategy “naive” because as the size
+of <code class="language-plaintext highlighter-rouge">path</code> increases, it starts to become very slow: every element of
+<code class="language-plaintext highlighter-rouge">path</code> must be considered, including every previously-discovered
+path. This is an asymptotically-larger amount of extra work (in
+general–precise problem dynamics vary of course), and will result in
+serious slowdown in general.</p>
+
+<p>The solution is to realize that we only need to track a delta of
+newly-discovered paths, since those are the only new ones that could
+lead us to find new paths. In the above example, we would use our
+delta version for <code class="language-plaintext highlighter-rouge">path</code> (rather than the “full” relation), allowing
+us to skip previously-examined paths.</p>
+
+<p>Making this precise and implementing it will involve some open-ended
+amount of work on your part, but I will sketch pieces of the solution.</p>
+
+<h2 id="testcases">Testcases</h2>
+
+<p>A number of testcases are given in the <code class="language-plaintext highlighter-rouge">test</code> subdirectory. The
+instructor will also use a small corpus of their own tests to test
+your code and check its correctness–but they will not be harder than
+the ones distributed to students, and you may be given the opportunity
+to fix broken code.</p>
+
+<p>Each testcase in the <code class="language-plaintext highlighter-rouge">.sdl</code> format also has a corresponding <code class="language-plaintext highlighter-rouge">.dl</code>
+format. For the purposes of this project, the notion of “correctness”
+is correctness vs. Souffle. My test scripts run the Souffle version of
+the program, run your your interpreter on the corresponding <code class="language-plaintext highlighter-rouge">.sdl</code>
+file, and then use the <code class="language-plaintext highlighter-rouge">csvdiff</code> tool on the appropriate output
+relation.</p>
+
+<h2 id="building-your-datalog-interpreter">Building your Datalog Interpreter</h2>
+
+<p>As long as you can parse input files and produce TSV output files, you
+are given wide liberty in terms of your implementation. You may use,
+e.g., Python, Rust, C++, Racket, Haskell, OCaml, etc… I have a
+reference implementation in Racket.</p>
+
+<p>Your interpreter may take either the naive or semi-naive evaluation
+strategy. You may also consider compiling to relational algebra
+kernels (i.e., for loops). This is also possible, it is up to you. I
+encourage you to write a dirt-simple naive interpreter. Once you
+finish with that for the positive fragment, try adding semi-naive
+evaluation. Or, similarly, explore how stratification would work.</p>
+
+<h2 id="submitting-your-program">Submitting your Program</h2>
+
+<p>Please send me your implementation, in whatever language, along with
+instructions on how to run it. Your program should take a single input
+file in the <code class="language-plaintext highlighter-rouge">.sdl</code> format and produce TSVs as output files (one for
+each relation in the program).</p>
+
+<p>Please also include a short document that describes the high-level
+design you have taken, and briefly summarizes what each group member
+did.</p>
+
+<h2 id="grading">Grading</h2>
+
+<ul>
+  <li>
+    <p>[40%] – Correct implementation of parsing for Simple Datalog <code class="language-plaintext highlighter-rouge">.sdl</code>
+files</p>
+  </li>
+  <li>
+    <p>[50%] – Correct implementation of the positive Datalog fragment,
+any implementation methodology (including naive).</p>
+  </li>
+  <li>
+    <p>[10%] – Choose one of the following:
+  -&gt; Semi-naive evaluation
+  -&gt; Stratified negation</p>
+  </li>
+</ul>
+
+<p>I would like to make it so that even if you only implement the naive,
+positive fragment of Datalog, you can still get a 90%. However, I
+seriously encourage you to work towards implementing semi-naive
+evaluation or stratified negation. I will consider partial effort
+on these parts <em>assuming</em> you have a correctly-functioning naive
+interpreter first (you can’t have nothing working).</p>
+
+<p>Best of luck and try to have fun!</p>
+
+  </div>
+
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+
+  <div class="wrapper">
+
+    <!-- <h2 class="footer-heading">CIS700</h2> -->
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li>CIS700</li>
+          <li><a href="mailto:"></a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col footer-col-2">
+        <ul class="social-media-list">
+          
+
+          
+        </ul>
+      </div>
+
+      <div class="footer-col footer-col-3">
+        <p>CMSC700--Modern Symbolic AI and Automated Reasoning at Syracuse U</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+
+<script src=https://kmicinski.com//cis700-f23/bower_components/jquery/dist/jquery.min.js></script>
+<script src=https://kmicinski.com//cis700-f23/bower_components/bootstrap-sass/assets/javascripts/bootstrap.min.js></script>
+
+
+  </body>
+
+</html>

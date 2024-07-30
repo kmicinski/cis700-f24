@@ -1,0 +1,574 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>CIS700</title>
+    <description>CMSC700--Modern Symbolic AI and Automated Reasoning at Syracuse U</description>
+    <link>https://kmicinski.com/cis700-f23/</link>
+    <atom:link href="https://kmicinski.com/cis700-f23/feed.xml" rel="self" type="application/rss+xml"/>
+    <pubDate>Tue, 30 Jul 2024 16:48:43 -0400</pubDate>
+    <lastBuildDate>Tue, 30 Jul 2024 16:48:43 -0400</lastBuildDate>
+    <generator>Jekyll v4.3.3</generator>
+    
+      <item>
+        <title>Project 2: Implementing Datalog</title>
+        <description>&lt;p&gt;&lt;strong&gt;Note&lt;/strong&gt;: you are encouraged to work in groups of up to three.&lt;/p&gt;
+
+&lt;p&gt;In this project, you will implement the logic programming language
+Datalog. Datalog is a restricted version of SAT to Horn clauses. For
+example, the following is a short Datalog program:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;path(x,y) :- edge(x,y)
+path(x,z) :- path(x,y) edge(y,z)
+
+edge(Syracuse,Rochester)
+edge(Rochester,Ithaca)
+edge(Rochester,Buffalo)
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;The program has two rules: the first says that any pair &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;x,y&lt;/code&gt; forming
+an &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;edge&lt;/code&gt; is also a &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path&lt;/code&gt;. Conceptually, we can think of &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;edge&lt;/code&gt; as an
+“input” relation; opertationally, the first rule copies &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;edge&lt;/code&gt; to
+&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path&lt;/code&gt;. The second rule iteratively builds up &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path&lt;/code&gt;. It says:
+whenever there is a &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path(x,y)&lt;/code&gt; such that there is also an &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;edge(y,z)&lt;/code&gt;
+(notice: y &lt;em&gt;matches&lt;/em&gt;), there must be &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path(x,z)&lt;/code&gt; as well. Executing
+the program materializes (via saturation) the relation &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path&lt;/code&gt;.&lt;/p&gt;
+
+&lt;h2 id=&quot;your-assignment&quot;&gt;Your Assignment&lt;/h2&gt;
+
+&lt;p&gt;You will build an interpreter for Datalog, which parses &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.dl&lt;/code&gt; files
+and executes them to a fixed point. Your .sdl (&lt;em&gt;simple&lt;/em&gt; DL) files will
+be a simplified format intended to be easy for you to parse, but
+roughly similar to the input format for the state-of-the-art
+&lt;a href=&quot;https://souffle-lang.github.io/&quot;&gt;Souffle&lt;/a&gt; engine–we encourage you to
+use Souffle to help understand Datalog, and we have Souffle versions
+of the test files. Your program will take a single command-line
+argument, which is the &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.sdl&lt;/code&gt; file which will be executed.&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;python3 yourdatalog.py transitive_closure.sdl
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Your program’s &lt;em&gt;output&lt;/em&gt; should be a collection of .tsv
+(tab-separated-values) files corresponding to the various relations of
+your output.&lt;/p&gt;
+
+&lt;p&gt;Every group must implement the “positive fragment” of Datalog sketched
+below. Additionally, you must implement one of two options:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Stratified negation&lt;/li&gt;
+  &lt;li&gt;Semi-naive evaluation&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;simple-datalog&quot;&gt;Simple Datalog&lt;/h2&gt;
+
+&lt;p&gt;We define a simple version of Datalog, which I call “simple” Datalog
+(&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.sdl&lt;/code&gt;). This is meant to be simpler to parse. In &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.sdl&lt;/code&gt; programs,
+there are only two types of lines allowed (other than empty lines):
+(a) facts and (b) rules.&lt;/p&gt;
+
+&lt;p&gt;Facts look like this:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;edge(1,2)
+foo(5,2,1)
+bar(2,5,1,2)
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Notice that the only type of allowed “atomic” Data in simple Datalog
+is the integers (e.g., there are no strings, etc… allowed). Also
+notice the precise formating: it is always &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;relation_name(n0,...)&lt;/code&gt;
+with the relation named, followed by &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;(&lt;/code&gt;, followed by a number of
+comma-separated integers (you can assume they are positive). This
+should be easy to parse in many languages via a combination of regular
+expressions, splitting, etc… Last, observe that facts do not allow
+any variables: only integers are allowed as arguments to the relation.&lt;/p&gt;
+
+&lt;p&gt;Rules are more general than facts, and define inductively-computed
+relations:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;path(x,y) :- edge(x,y)
+path(x,z) :- path(x,y) path(y,z)
+foo(x,5) :- bar(x,1,y) edge(x,y)
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;The &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;:-&lt;/code&gt; is a common (but antiquated) symbol frequently used in logic
+programming–it means ←. So these rules could be read alternatively
+as:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;path(x,y) ← edge(x,y)
+path(x,z) ← path(x,y) ∧ path(y,z)
+foo(x,5) ← bar(x,1,y) ∧ edge(x,y)
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;These are Horn clauses. A Horn clause is a clause with at most one
+positive literal. To understand this, let’s unfold the definition of ←
+(notice it’s backwards) to obtain:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;path(x,y) ∨ ¬edge(x,y)
+path(x,z) ∨ ¬path(x,y) ∨ ¬path(y,z)
+foo(x,5) ∨ ¬bar(x,1,y) ∨ ¬edge(x,y)
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Now we can see clearly: Horn clauses which are set up for unit
+propagation. Datalog is essentially the restriction of propositional
+SAT to Horn clauses. We call the positive atom the “head” of the rule
+and the negative atoms the “body.” In general, the evaluation strategy
+of Datalog proceeds to a fixed-point, executing each rule until no
+more rules produce any useful information. While it is possible to
+simply use a SAT solver, Datalog’s restriction to Horn clauses enables
+a much more efficient evaluation strategy (semi-naive evaluation) and
+the ability to exploit a host of other niceties.&lt;/p&gt;
+
+&lt;h4 id=&quot;syntax-summary&quot;&gt;Syntax Summary&lt;/h4&gt;
+
+&lt;p&gt;In sum, you will accept as input a &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.sdl&lt;/code&gt; file specifying the
+problem. Non-empty input lines in &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.sdl&lt;/code&gt; files will have one of two
+formats:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Facts. Relations (alphanumeric, including &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;_&lt;/code&gt;) applied to a
+comma-separated list of numbers: &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;f(1,2,3)&lt;/code&gt; but not &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;f(x,1)&lt;/code&gt;.&lt;/li&gt;
+  &lt;li&gt;Rules. A head of a rule, followed by &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;:-&lt;/code&gt;, followed by one or more
+bodies. The head and body clauses are of the form &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;f(x,...)&lt;/code&gt;,
+specifying either (a) an integer literal or (b) a variable
+name. Variables used in the head &lt;em&gt;must&lt;/em&gt; appear in the body (i.e.,
+they must be grounded).&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;positive-datalog-and-stratified-negation&quot;&gt;Positive Datalog and Stratified Negation&lt;/h2&gt;
+
+&lt;p&gt;Notice that vanilla Datalog does not include negation. It is fairly
+straightforward to add negation, provided that its computation may be
+&lt;em&gt;stratified&lt;/em&gt;. For example, look at the following:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;symm(x,y) :- edge(x,y) edge(y,x)
+non_symm(x,y) :- edge(x,y) not(symm(y,x))
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;This program is &lt;em&gt;not&lt;/em&gt; vanilla Datalog, but it is possible to
+understand what it means intuitively: first compute &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;symm&lt;/code&gt;, then
+compute &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;non_sym&lt;/code&gt; by iterating over &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;edge&lt;/code&gt; and including pairs &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;(x,y)&lt;/code&gt;
+for which there is no entry for &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;symm(y,x)&lt;/code&gt; in the relation &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;symm&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;This is called “stratified” negation. A Datalog program that uses
+stratified negation is essentially equivalent to a chain of Datalog
+programs, each which fully materializes a subordinate relation (&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;symm&lt;/code&gt;
+in this case) and then consults it using &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;not&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;If you would like to implement stratified negation, first implement
+the positive Datalog fragment (i.e., vanilla Datalog). Then, think
+about how to stratify the program so that whenever you need to invoke
+&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;not&lt;/code&gt; on a relation, the relation is materialized via a previous
+stratum.&lt;/p&gt;
+
+&lt;p&gt;If you do this phase, provide at least two nontrivial tests that your
+implementation works. You may take some liberty with the parsing and
+concrete syntax, as long as you say what you are doing.&lt;/p&gt;
+
+&lt;p&gt;Note that not all programs can be stratified. For example, the
+following is an error:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;path(x,y) :- edge(x,y)
+path(x,z) :- not(path(x,y)) edge(y,z)
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;The issue is that &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;x&lt;/code&gt; and &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;y&lt;/code&gt; are not &lt;em&gt;grounded&lt;/em&gt;. You will need to
+carefully consider this in your implementation.&lt;/p&gt;
+
+&lt;h2 id=&quot;semi-naive-evaluation&quot;&gt;Semi-Naive Evaluation&lt;/h2&gt;
+
+&lt;p&gt;Consider the transitive closure program from earlier:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;path(x,y) :- edge(x,y)
+path(x,z) :- path(x,y) edge(y,z)
+edge(1,2)
+edge(2,3)
+edge(2,4)
+...
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;The “naive” semantics is to run each rule at every iteration, building
+up the set &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path&lt;/code&gt;. We call this strategy “naive” because as the size
+of &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path&lt;/code&gt; increases, it starts to become very slow: every element of
+&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path&lt;/code&gt; must be considered, including every previously-discovered
+path. This is an asymptotically-larger amount of extra work (in
+general–precise problem dynamics vary of course), and will result in
+serious slowdown in general.&lt;/p&gt;
+
+&lt;p&gt;The solution is to realize that we only need to track a delta of
+newly-discovered paths, since those are the only new ones that could
+lead us to find new paths. In the above example, we would use our
+delta version for &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path&lt;/code&gt; (rather than the “full” relation), allowing
+us to skip previously-examined paths.&lt;/p&gt;
+
+&lt;p&gt;Making this precise and implementing it will involve some open-ended
+amount of work on your part, but I will sketch pieces of the solution.&lt;/p&gt;
+
+&lt;h2 id=&quot;testcases&quot;&gt;Testcases&lt;/h2&gt;
+
+&lt;p&gt;A number of testcases are given in the &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;test&lt;/code&gt; subdirectory. The
+instructor will also use a small corpus of their own tests to test
+your code and check its correctness–but they will not be harder than
+the ones distributed to students, and you may be given the opportunity
+to fix broken code.&lt;/p&gt;
+
+&lt;p&gt;Each testcase in the &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.sdl&lt;/code&gt; format also has a corresponding &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.dl&lt;/code&gt;
+format. For the purposes of this project, the notion of “correctness”
+is correctness vs. Souffle. My test scripts run the Souffle version of
+the program, run your your interpreter on the corresponding &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.sdl&lt;/code&gt;
+file, and then use the &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;csvdiff&lt;/code&gt; tool on the appropriate output
+relation.&lt;/p&gt;
+
+&lt;h2 id=&quot;building-your-datalog-interpreter&quot;&gt;Building your Datalog Interpreter&lt;/h2&gt;
+
+&lt;p&gt;As long as you can parse input files and produce TSV output files, you
+are given wide liberty in terms of your implementation. You may use,
+e.g., Python, Rust, C++, Racket, Haskell, OCaml, etc… I have a
+reference implementation in Racket.&lt;/p&gt;
+
+&lt;p&gt;Your interpreter may take either the naive or semi-naive evaluation
+strategy. You may also consider compiling to relational algebra
+kernels (i.e., for loops). This is also possible, it is up to you. I
+encourage you to write a dirt-simple naive interpreter. Once you
+finish with that for the positive fragment, try adding semi-naive
+evaluation. Or, similarly, explore how stratification would work.&lt;/p&gt;
+
+&lt;h2 id=&quot;submitting-your-program&quot;&gt;Submitting your Program&lt;/h2&gt;
+
+&lt;p&gt;Please send me your implementation, in whatever language, along with
+instructions on how to run it. Your program should take a single input
+file in the &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.sdl&lt;/code&gt; format and produce TSVs as output files (one for
+each relation in the program).&lt;/p&gt;
+
+&lt;p&gt;Please also include a short document that describes the high-level
+design you have taken, and briefly summarizes what each group member
+did.&lt;/p&gt;
+
+&lt;h2 id=&quot;grading&quot;&gt;Grading&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;
+    &lt;p&gt;[40%] – Correct implementation of parsing for Simple Datalog &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.sdl&lt;/code&gt;
+files&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;[50%] – Correct implementation of the positive Datalog fragment,
+any implementation methodology (including naive).&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;[10%] – Choose one of the following:
+  -&amp;gt; Semi-naive evaluation
+  -&amp;gt; Stratified negation&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;I would like to make it so that even if you only implement the naive,
+positive fragment of Datalog, you can still get a 90%. However, I
+seriously encourage you to work towards implementing semi-naive
+evaluation or stratified negation. I will consider partial effort
+on these parts &lt;em&gt;assuming&lt;/em&gt; you have a correctly-functioning naive
+interpreter first (you can’t have nothing working).&lt;/p&gt;
+
+&lt;p&gt;Best of luck and try to have fun!&lt;/p&gt;
+</description>
+        <pubDate>Thu, 28 Sep 2023 00:00:00 -0400</pubDate>
+        <link>https://kmicinski.com/cis700-f23/projects/2</link>
+        <guid isPermaLink="true">https://kmicinski.com/cis700-f23/projects/2</guid>
+        
+        
+        <category>assignment</category>
+        
+        <category>project</category>
+        
+      </item>
+    
+      <item>
+        <title>Project 2: Implementing Datalog</title>
+        <description>&lt;p&gt;&lt;strong&gt;Note&lt;/strong&gt;: you are encouraged to work in groups of up to three.&lt;/p&gt;
+
+&lt;p&gt;In this project, you will implement the logic programming language
+Datalog. Datalog is a restricted version of SAT to Horn clauses. For
+example, the following is a short Datalog program:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;path(x,y) :- edge(x,y)
+path(x,z) :- path(x,y) edge(y,z)
+
+edge(Syracuse,Rochester)
+edge(Rochester,Ithaca)
+edge(Rochester,Buffalo)
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;The program has two rules: the first says that any pair &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;x,y&lt;/code&gt; forming
+an &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;edge&lt;/code&gt; is also a &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path&lt;/code&gt;. Conceptually, we can think of &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;edge&lt;/code&gt; as an
+“input” relation; opertationally, the first rule copies &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;edge&lt;/code&gt; to
+&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path&lt;/code&gt;. The second rule iteratively builds up &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path&lt;/code&gt;. It says:
+whenever there is a &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path(x,y)&lt;/code&gt; such that there is also an &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;edge(y,z)&lt;/code&gt;
+(notice: y &lt;em&gt;matches&lt;/em&gt;), there must be &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path(x,z)&lt;/code&gt; as well. Executing
+the program materializes (via saturation) the relation &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path&lt;/code&gt;.&lt;/p&gt;
+
+&lt;h2 id=&quot;your-assignment&quot;&gt;Your Assignment&lt;/h2&gt;
+
+&lt;p&gt;You will build an interpreter for Datalog, which parses &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.dl&lt;/code&gt; files
+and executes them to a fixed point. Your .sdl (&lt;em&gt;simple&lt;/em&gt; DL) files will
+be a simplified format intended to be easy for you to parse, but
+roughly similar to the input format for the state-of-the-art
+&lt;a href=&quot;https://souffle-lang.github.io/&quot;&gt;Souffle&lt;/a&gt; engine–we encourage you to
+use Souffle to help understand Datalog, and we have Souffle versions
+of the test files. Your program will take a single command-line
+argument, which is the &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.sdl&lt;/code&gt; file which will be executed.&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;python3 yourdatalog.py transitive_closure.sdl
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Your program’s &lt;em&gt;output&lt;/em&gt; should be a collection of .tsv
+(tab-separated-values) files corresponding to the various relations of
+your output.&lt;/p&gt;
+
+&lt;p&gt;Every group must implement the “positive fragment” of Datalog sketched
+below. Additionally, you must implement one of two options:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Stratified negation&lt;/li&gt;
+  &lt;li&gt;Semi-naive evaluation&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;simple-datalog&quot;&gt;Simple Datalog&lt;/h2&gt;
+
+&lt;p&gt;We define a simple version of Datalog, which I call “simple” Datalog
+(&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.sdl&lt;/code&gt;). This is meant to be simpler to parse. In &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.sdl&lt;/code&gt; programs,
+there are only two types of lines allowed (other than empty lines):
+(a) facts and (b) rules.&lt;/p&gt;
+
+&lt;p&gt;Facts look like this:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;edge(1,2)
+foo(5,2,1)
+bar(2,5,1,2)
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Notice that the only type of allowed “atomic” Data in simple Datalog
+is the integers (e.g., there are no strings, etc… allowed). Also
+notice the precise formating: it is always &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;relation_name(n0,...)&lt;/code&gt;
+with the relation named, followed by &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;(&lt;/code&gt;, followed by a number of
+comma-separated integers (you can assume they are positive). This
+should be easy to parse in many languages via a combination of regular
+expressions, splitting, etc… Last, observe that facts do not allow
+any variables: only integers are allowed as arguments to the relation.&lt;/p&gt;
+
+&lt;p&gt;Rules are more general than facts, and define inductively-computed
+relations:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;path(x,y) :- edge(x,y)
+path(x,z) :- path(x,y) path(y,z)
+foo(x,5) :- bar(x,1,y) edge(x,y)
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;The &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;:-&lt;/code&gt; is a common (but antiquated) symbol frequently used in logic
+programming–it means ←. So these rules could be read alternatively
+as:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;path(x,y) ← edge(x,y)
+path(x,z) ← path(x,y) ∧ path(y,z)
+foo(x,5) ← bar(x,1,y) ∧ edge(x,y)
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;These are Horn clauses. A Horn clause is a clause with at most one
+positive literal. To understand this, let’s unfold the definition of ←
+(notice it’s backwards) to obtain:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;path(x,y) ∨ ¬edge(x,y)
+path(x,z) ∨ ¬path(x,y) ∨ ¬path(y,z)
+foo(x,5) ∨ ¬bar(x,1,y) ∨ ¬edge(x,y)
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Now we can see clearly: Horn clauses which are set up for unit
+propagation. Datalog is essentially the restriction of propositional
+SAT to Horn clauses. We call the positive atom the “head” of the rule
+and the negative atoms the “body.” In general, the evaluation strategy
+of Datalog proceeds to a fixed-point, executing each rule until no
+more rules produce any useful information. While it is possible to
+simply use a SAT solver, Datalog’s restriction to Horn clauses enables
+a much more efficient evaluation strategy (semi-naive evaluation) and
+the ability to exploit a host of other niceties.&lt;/p&gt;
+
+&lt;h4 id=&quot;syntax-summary&quot;&gt;Syntax Summary&lt;/h4&gt;
+
+&lt;p&gt;In sum, you will accept as input a &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.sln&lt;/code&gt; file specifying the
+problem. Non-empty input lines in &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.sln&lt;/code&gt; files will have one of two
+formats:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Facts. Relations (alphanumeric, including &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;_&lt;/code&gt;) applied to a
+comma-separated list of numbers: &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;f(1,2,3)&lt;/code&gt; but not &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;f(x,1)&lt;/code&gt;.&lt;/li&gt;
+  &lt;li&gt;Rules. A head of a rule, followed by ` :- &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;, followed by one or more
+bodies. The head and body clauses are of the form &lt;/code&gt;f(x,…)`,
+specifying either (a) an integer literal or (b) a variable
+name. Variables used in the head &lt;em&gt;must&lt;/em&gt; appear in the body (i.e.,
+they must be grounded).&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;positive-datalog-and-stratified-negation&quot;&gt;Positive Datalog and Stratified Negation&lt;/h2&gt;
+
+&lt;p&gt;Notice that vanilla Datalog does not include negation. It is fairly
+straightforward to add negation, provided that its computation may be
+&lt;em&gt;stratified&lt;/em&gt;. For example, look at the following:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;symm(x,y) :- edge(x,y) edge(y,x)
+non_symm(x,y) :- edge(x,y) not(symm(y,x))
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;This program is &lt;em&gt;not&lt;/em&gt; vanilla Datalog, but it is possible to
+understand what it means intuitively: first compute &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;symm&lt;/code&gt;, then
+compute &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;non_sym&lt;/code&gt; by iterating over &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;edge&lt;/code&gt; and including pairs &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;(x,y)&lt;/code&gt;
+for which there is no entry for &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;symm(y,x)&lt;/code&gt; in the relation &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;symm&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;This is called “stratified” negation. A Datalog program that uses
+stratified negation is essentially equivalent to a chain of Datalog
+programs, each which fully materializes a subordinate relation (&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;symm&lt;/code&gt;
+in this case) and then consults it using &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;not&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;If you would like to implement stratified negation, first implement
+the positive Datalog fragment (i.e., vanilla Datalog). Then, think
+about how to stratify the program so that whenever you need to invoke
+&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;not&lt;/code&gt; on a relation, the relation is materialized via a previous
+stratum.&lt;/p&gt;
+
+&lt;p&gt;If you do this phase, provide at least two nontrivial tests that your
+implementation works. You may take some liberty with the parsing and
+concrete syntax, as long as you say what you are doing.&lt;/p&gt;
+
+&lt;p&gt;Note that not all programs can be stratified. For example, the
+following is an error:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;path(x,y) :- edge(x,y)
+path(x,z) :- not(path(x,y)) edge(y,z)
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;The issue is that &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;x&lt;/code&gt; and &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;y&lt;/code&gt; are not &lt;em&gt;grounded&lt;/em&gt;. You will need to
+carefully consider this in your implementation.&lt;/p&gt;
+
+&lt;h2 id=&quot;semi-naive-evaluation&quot;&gt;Semi-Naive Evaluation&lt;/h2&gt;
+
+&lt;p&gt;Consider the transitive closure program from earlier:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;path(x,y) :- edge(x,y)
+path(x,z) :- path(x,y) edge(y,z)
+edge(1,2)
+edge(2,3)
+edge(2,4)
+...
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;The “naive” semantics is to run each rule at every iteration, building
+up the set &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path&lt;/code&gt;. We call this strategy “naive” because as the size
+of &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path&lt;/code&gt; increases, it starts to become very slow: every element of
+&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path&lt;/code&gt; must be considered, including every previously-discovered
+path. This is an asymptotically-larger amount of extra work (in
+general–precise problem dynamics vary of course), and will result in
+serious slowdown in general.&lt;/p&gt;
+
+&lt;p&gt;The solution is to realize that we only need to track a delta of
+newly-discovered paths, since those are the only new ones that could
+lead us to find new paths. In the above example, we would use our
+delta version for &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path&lt;/code&gt; (rather than the “full” relation), allowing
+us to skip previously-examined paths.&lt;/p&gt;
+
+&lt;p&gt;Making this precise and implementing it will involve some open-ended
+amount of work on your part, but I will sketch pieces of the solution.&lt;/p&gt;
+
+&lt;h2 id=&quot;testcases&quot;&gt;Testcases&lt;/h2&gt;
+
+&lt;p&gt;A number of testcases are given in the &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;test&lt;/code&gt; subdirectory. The
+instructor will also use a small corpus of their own tests to test
+your code and check its correctness–but they will not be harder than
+the ones distributed to students, and you may be given the opportunity
+to fix broken code.&lt;/p&gt;
+
+&lt;p&gt;Each testcase in the &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.sdl&lt;/code&gt; format also has a corresponding &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.dl&lt;/code&gt;
+format. For the purposes of this project, the notion of “correctness”
+is correctness vs. Souffle. My test scripts run the Souffle version of
+the program, run your your interpreter on the corresponding &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.sdl&lt;/code&gt;
+file, and then use the &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;csvdiff&lt;/code&gt; tool on the appropriate output
+relation.&lt;/p&gt;
+
+&lt;h2 id=&quot;building-your-datalog-interpreter&quot;&gt;Building your Datalog Interpreter&lt;/h2&gt;
+
+&lt;p&gt;As long as you can parse input files and produce TSV output files, you
+are given wide liberty in terms of your implementation. You may use,
+e.g., Python, Rust, C++, Racket, Haskell, OCaml, etc… I have a
+reference implementation in Racket.&lt;/p&gt;
+
+&lt;p&gt;Your interpreter may take either the naive or semi-naive evaluation
+strategy. You may also consider compiling to relational algebra
+kernels (i.e., for loops). This is also possible, it is up to you. I
+encourage you to write a dirt-simple naive interpreter. Once you
+finish with that for the positive fragment, try adding semi-naive
+evaluation. Or, similarly, explore how stratification would work.&lt;/p&gt;
+
+&lt;h2 id=&quot;submitting-your-program&quot;&gt;Submitting your Program&lt;/h2&gt;
+
+&lt;p&gt;Please send me your implementation, in whatever language, along with
+instructions on how to run it. Your program should take a single input
+file in the &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.sdl&lt;/code&gt; format and produce TSVs as output files (one for
+each relation in the program).&lt;/p&gt;
+
+&lt;p&gt;Please also include a short document that describes the high-level
+design you have taken, and briefly summarizes what each group member
+did.&lt;/p&gt;
+
+&lt;h2 id=&quot;grading&quot;&gt;Grading&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;
+    &lt;p&gt;[40%] – Correct implementation of parsing for Simple Datalog &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.sdl&lt;/code&gt;
+files&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;[50%] – Correct implementation of the positive Datalog fragment,
+any implementation methodology (including naive).&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;[10%] – Choose one of the following:
+  -&amp;gt; Semi-naive evaluation
+  -&amp;gt; Stratified negation&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;I would like to make it so that even if you only implement the naive,
+positive fragment of Datalog, you can still get a 90%. However, I
+seriously encourage you to work towards implementing semi-naive
+evaluation or stratified negation. I will consider partial effort
+on these parts &lt;em&gt;assuming&lt;/em&gt; you have a correctly-functioning naive
+interpreter first (you can’t have nothing working).&lt;/p&gt;
+
+&lt;p&gt;Best of luck and try to have fun!&lt;/p&gt;
+</description>
+        <pubDate>Mon, 25 Sep 2023 00:00:00 -0400</pubDate>
+        <link>https://kmicinski.com/cis700-f23/projects/2</link>
+        <guid isPermaLink="true">https://kmicinski.com/cis700-f23/projects/2</guid>
+        
+        
+        <category>assignment</category>
+        
+        <category>project</category>
+        
+      </item>
+    
+      <item>
+        <title>Assignment 0: Introduction to Racket</title>
+        <description>&lt;p&gt;&lt;strong&gt;Due&lt;/strong&gt;: Monday, January 20th, 11:59PM.&lt;/p&gt;
+
+&lt;p&gt;Available on http://autograder.org. Use your credentials to login.&lt;/p&gt;
+</description>
+        <pubDate>Thu, 16 Jan 2020 00:00:00 -0500</pubDate>
+        <link>https://kmicinski.com/cis700-f23/projects/0</link>
+        <guid isPermaLink="true">https://kmicinski.com/cis700-f23/projects/0</guid>
+        
+        
+        <category>assignment</category>
+        
+        <category>project</category>
+        
+      </item>
+    
+  </channel>
+</rss>
